@@ -1,5 +1,7 @@
 import sys
 from transformers import AutoModelForSeq2SeqLM, AutoTokenizer, pipeline
+from krwordrank.word import KRWordRank
+from krwordrank.sentence import make_vocab_score, MaxScoreTokenizer, keysentence
 
 sys.stdout.reconfigure(encoding='utf-8')
 
@@ -14,6 +16,31 @@ def generate_text(pipe, text, target_style, num_return_sequences=1, max_length=6
     text = f"{target_style} 말투로 변환 :{text}"
     out = pipe(text, num_return_sequences=num_return_sequences, max_length=max_length)
     return [x['generated_text'] for x in out][0]
+
+
+def extract_keysents(voice_texts):
+    sentence_list = [sentence.strip() for sentence in voice_texts.split('.') if sentence.strip()]
+    wordrank_extractor = KRWordRank(
+        min_count=2,
+        max_length=10,
+        verbose=True
+    )
+
+    beta = 0.85
+    max_iter = 10
+    stopwords = []
+
+    keywords, rank, graph = wordrank_extractor.extract(sentence_list, beta, max_iter, num_keywords=100)
+
+    vocab_score = make_vocab_score(keywords, stopwords=stopwords, scaling=lambda x: 1)
+    tokenizer = MaxScoreTokenizer(vocab_score)
+    sents = keysentence(
+        vocab_score, sentence_list, tokenizer.tokenize,
+        diversity=0.3,
+        topk=3
+    )
+    return sents
+
 
 
 # 참고 (스타일 맵)
