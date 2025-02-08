@@ -21,7 +21,7 @@ def generate_text(pipe, text, target_style, num_return_sequences=1, max_length=6
 def extract_keysents(voice_texts):
     sentence_list = [sentence.strip() for sentence in voice_texts.split('.') if sentence.strip()]
     wordrank_extractor = KRWordRank(
-        min_count=2,
+        min_count=1,
         max_length=10,
         verbose=True
     )
