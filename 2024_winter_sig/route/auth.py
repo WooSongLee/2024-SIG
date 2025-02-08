@@ -10,7 +10,7 @@ class LoginRequest(BaseModel):
 
 @router.post("/login")
 def login(data: LoginRequest):
-    #services에서 실제 로그인 조회 구현
+    #로그인 확인 및 토큰 발급
     if data.id == "test" and data.password == "1234":
         return {"success": True, "token": "example_token"}
     else:
