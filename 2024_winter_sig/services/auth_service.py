@@ -1,16 +1,6 @@
 from sqlalchemy.orm import Session
-from ..DB.db import Base
 from fastapi import HTTPException
-from sqlalchemy import Column, Integer, String
-
-
-class User(Base):
-    __tablename__ = "User"
-    id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(String(45), unique=True, nullable=False)
-    user_pwd = Column(String(45), nullable=False)
-    user_name = Column(String(45), nullable=False)
-
+from ..DB.models import User
 
 def register_user(user_id: str, user_pwd: str, user_name: str, db: Session):
     existing_user = db.query(User).filter(User.user_id == user_id).first()

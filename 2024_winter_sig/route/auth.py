@@ -1,5 +1,7 @@
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
+from ..DB.db import get_db
+from ..services.auth_service import login_user
 
 router = APIRouter()
 
@@ -10,8 +12,4 @@ class LoginRequest(BaseModel):
 
 @router.post("/login")
 def login(data: LoginRequest):
-    #로그인 확인 및 토큰 발급
-    if data.id == "test" and data.password == "1234":
-        return {"success": True, "token": "example_token"}
-    else:
-        raise HTTPException(status_code=401, detail="Invalid credentials")
+    login_user(data.id, data.password, get_db())
