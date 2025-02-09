@@ -2,6 +2,8 @@ import sys
 from transformers import AutoModelForSeq2SeqLM, AutoTokenizer, pipeline
 from krwordrank.word import KRWordRank
 from krwordrank.sentence import make_vocab_score, MaxScoreTokenizer, keysentence
+from deepmultilingualpunctuation import PunctuationModel
+from nltk.tokenize import PunktSentenceTokenizer
 
 sys.stdout.reconfigure(encoding='utf-8')
 
@@ -19,7 +21,11 @@ def generate_text(pipe, text, target_style, num_return_sequences=1, max_length=6
 
 
 def extract_keysents(voice_texts):
-    sentence_list = [sentence.strip() for sentence in voice_texts.split('.') if sentence.strip()]
+    model = PunctuationModel()
+    tokenizer = PunktSentenceTokenizer()
+
+    result = model.restore_punctuation(voice_texts)
+    sentence_list = tokenizer.tokenize(result)
     wordrank_extractor = KRWordRank(
         min_count=1,
         max_length=10,
@@ -36,7 +42,7 @@ def extract_keysents(voice_texts):
     tokenizer = MaxScoreTokenizer(vocab_score)
     sents = keysentence(
         vocab_score, sentence_list, tokenizer.tokenize,
-        diversity=0.3,
+        diversity=0.5,
         topk=3
     )
     return sents
