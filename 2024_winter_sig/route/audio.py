@@ -4,9 +4,7 @@ router = APIRouter()
 
 @router.post("/upload-audio")
 def upload_audio(audio_file: UploadFile = File(...), date: str = Form(...), tone: str = Form(...)):
-    return {
-        "status": "success",
-        "date": date,
-        "tone": tone,
-        "content": "오늘은 뜻깊은 하루였다..."
-    }
+    #음성 추출
+    #문체변환및 문법교정
+    #return status, date, tone, contents(생성된 일기)
+

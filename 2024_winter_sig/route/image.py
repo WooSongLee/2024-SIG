@@ -11,8 +11,4 @@ class ImageRequest(BaseModel):
 
 @router.post("/generate-image")
 def generate_image(data: ImageRequest):
-    return {
-        "image_url1": f"http://localhost:8000/static/images/{data.date}-1.jpg",
-        "image_url2": f"http://localhost:8000/static/images/{data.date}-2.jpg",
-        "image_url3": f"http://localhost:8000/static/images/{data.date}-3.jpg"
-    }
+    #이미지url 3개 return
