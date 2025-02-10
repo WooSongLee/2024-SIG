@@ -1,25 +1,28 @@
 from fastapi import APIRouter
 from pydantic import BaseModel
 from typing import List
+from ..services.diary_service import getDiary, getMainDiary, getSelectedDiary
 
 router = APIRouter()
 
-# 일기 응답 데이터 모델
-class DiaryEntry(BaseModel):
+class SavingData(BaseModel):
     date: str
-    title: str
-    image_url: str
-
-class DiaryResponse(BaseModel):
-    month: str
-    days: List[DiaryEntry]
+    image_url : str
+    title : str
+    contents : str
 
 @router.get("/diary")
 def get_diary():
-    return DiaryResponse(
-        month="2024-01",
-        days=[
-            {"date": "2024-01-01", "title": "새해 첫 날", "image_url": "https://example.com/1.jpg"},
-            {"date": "2024-01-02", "title": "새로운 시작", "image_url": "https://example.com/2.jpg"},
-        ]
-    )
+    return getDiary()
+
+@router.get("/MainDiary")
+def get_main_diary():
+    return getMainDiary()
+
+@router.get("/diary/${selectedDate}")
+def get_selected_diary(selectedDate : str):
+    return getSelectedDiary(selectedDate)
+
+@router.get("/saving")
+def saving_diary(savingdata: SavingData):
+    #return status

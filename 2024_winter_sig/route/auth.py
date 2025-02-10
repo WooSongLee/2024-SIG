@@ -13,3 +13,4 @@ class LoginRequest(BaseModel):
 @router.post("/login")
 def login(data: LoginRequest):
     login_user(data.id, data.password, get_db())
+
