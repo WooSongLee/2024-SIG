@@ -11,4 +11,4 @@ class ImageRequest(BaseModel):
 
 @router.post("/generate-image")
 def generate_image(data: ImageRequest):
-    #이미지url 3개 return
+    #이미지3개 return
