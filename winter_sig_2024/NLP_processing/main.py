@@ -1,4 +1,4 @@
-from nlp_processor import load_KoBART, generate_text, extract_keysents
+from winter_sig_2024.NLP_processing.nlp_processor import load_KoBART, generate_text, extract_keysents
 
 voice_text = ""
 

@@ -1,16 +1,9 @@
 from fastapi import APIRouter
-from pydantic import BaseModel
-from ..DB.db import get_db
-from ..services.diary_service import getDiary, getMainDiary, getSelectedDiary, savingDiary
+from winter_sig_2024.schemas import SavingData
+from winter_sig_2024.DB.db import get_db
+from winter_sig_2024.services.diary_service import getDiary, getMainDiary, getSelectedDiary, savingDiary
 
 router = APIRouter()
-
-
-class SavingData(BaseModel):
-    date: str
-    image: str
-    title: str
-    contents: str
 
 
 @router.get("/diary")
@@ -30,4 +23,4 @@ def get_selected_diary(selectedDate: str):
 
 @router.get("/saving")
 def saving_diary(savingdata: SavingData):
-    return savingDiary(savingdata)
+    return savingDiary(get_db(), savingdata)

@@ -2,7 +2,6 @@ import speech_recognition as sr
 from fastapi import UploadFile
 import io
 
-
 def extract_contents(audio_file: UploadFile) -> str:
     recognizer = sr.Recognizer()
 

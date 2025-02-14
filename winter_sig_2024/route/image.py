@@ -8,7 +8,7 @@ class ImageRequest(BaseModel):
     date: str
     title: str
     content: str
-
-@router.post("/generate-image")
-def generate_image(data: ImageRequest):
-    #이미지3개 return
+#
+# @router.post("/generate-image")
+# def generate_image(data: ImageRequest):
+#     #이미지3개 return

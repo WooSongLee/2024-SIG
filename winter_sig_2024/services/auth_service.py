@@ -1,6 +1,6 @@
 from sqlalchemy.orm import Session
 from fastapi import HTTPException
-from ..DB.models import User
+from winter_sig_2024.DB.models import User
 
 
 def register_user(user_id: str, user_pwd: str, user_name: str, db: Session):
