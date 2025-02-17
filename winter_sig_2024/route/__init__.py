@@ -1,8 +1,8 @@
 from fastapi import APIRouter
-from .auth import router as auth_router
-from .diary import router as diary_router
-from .audio import router as voice_router
-from .image import router as image_router
+from winter_sig_2024.route.auth import router as auth_router
+from winter_sig_2024.route.diary import router as diary_router
+from winter_sig_2024.route.audio import router as voice_router
+from winter_sig_2024.route.image import router as image_router
 
 api_router = APIRouter()
 

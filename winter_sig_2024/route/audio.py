@@ -1,6 +1,6 @@
 from fastapi import APIRouter, UploadFile, File, Form
-from ..services.voice_service import extract_contents
-from ..NLP_processing.main import generateText
+from winter_sig_2024.services.voice_service import extract_contents
+from winter_sig_2024.NLP_processing.main import generateText
 
 router = APIRouter()
 

@@ -6,12 +6,14 @@ from deepmultilingualpunctuation import PunctuationModel
 
 sys.stdout.reconfigure(encoding='utf-8')
 
+
 def load_KoBART():
     model_path = "C:\\Users\\rladm\\Desktop\\BARTmodel"
     bart_model = AutoModelForSeq2SeqLM.from_pretrained(model_path)
     tokenizer = AutoTokenizer.from_pretrained(model_path)
     nlp_pipeline = pipeline('text2text-generation', model=bart_model, tokenizer=tokenizer)
     return nlp_pipeline
+
 
 def generate_text(pipe, text, target_style, num_return_sequences=1, max_length=60):
     text = f"{target_style} 말투로 변환 :{text}"
@@ -23,7 +25,7 @@ def extract_keysents(voice_texts):
     model = PunctuationModel()
     result = model.restore_punctuation(voice_texts)
     sentence_list = re.findall(r'.+?[.!?,]', result)
-    
+
     wordrank_extractor = KRWordRank(
         min_count=1,
         max_length=10,
@@ -44,8 +46,6 @@ def extract_keysents(voice_texts):
         topk=3
     )
     return sents
-
-
 
 # 참고 (스타일 맵)
 # style_map = {

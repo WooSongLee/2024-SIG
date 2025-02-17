@@ -1,8 +1,7 @@
 import datetime
 from sqlalchemy.orm import Session
-from ..DB.models import Diary
-from ..route.diary import SavingData
-
+from winter_sig_2024.DB.models import Diary
+from winter_sig_2024.schemas import SavingData
 
 # 이번달 일기 날짜, 제목, 이미지 return
 def getDiary(db: Session):
@@ -45,7 +44,6 @@ def getSelectedDiary(db: Session, selectedDate: str):
     }
 
 
-#
 def savingDiary(db: Session, data: SavingData):
     diary_date = data.date
     diary_image = data.image

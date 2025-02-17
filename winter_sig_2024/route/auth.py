@@ -1,7 +1,7 @@
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
-from ..DB.db import get_db
-from ..services.auth_service import login_user
+from winter_sig_2024.DB.db import get_db
+from winter_sig_2024.services.auth_service import login_user
 
 router = APIRouter()
 
