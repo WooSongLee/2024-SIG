@@ -8,7 +8,7 @@ sys.stdout.reconfigure(encoding='utf-8')
 
 
 def load_KoBART():
-    model_path = "/Users/iusong/Downloads/BART"
+    model_path = "/Users/iusong/ChessHelper/2024-SIG/winter_sig_2024/BART"
     bart_model = AutoModelForSeq2SeqLM.from_pretrained(model_path)
     tokenizer = AutoTokenizer.from_pretrained(model_path)
     nlp_pipeline = pipeline('text2text-generation', model=bart_model, tokenizer=tokenizer)
