@@ -15,7 +15,7 @@ def load_KoBART():
     return nlp_pipeline
 
 
-def generate_text(pipe, text, target_style, num_return_sequences=1, max_length=60):
+def generate_text(pipe, text, target_style, num_return_sequences=1, max_length=2000):
     text = f"{target_style} 말투로 변환 :{text}"
     out = pipe(text, num_return_sequences=num_return_sequences, max_length=max_length)
     return [x['generated_text'] for x in out][0]
