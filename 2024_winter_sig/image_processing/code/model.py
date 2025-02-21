@@ -284,27 +284,33 @@ class CNN_ENCODER(nn.Module):
 class CA_NET(nn.Module):
     # some code is modified from vae examples
     # (https://github.com/pytorch/examples/blob/master/vae/main.py)
+    
+    #### PyTorch의 nn.Module을 상속받아 정의된 신경망으로, 텍스트 임베딩을 입력받아 정규 분포에서 샘플링된 잠재 벡터를 출력하는 구조를 가지고 있다.
     def __init__(self):
         super(CA_NET, self).__init__()
-        self.t_dim = cfg.TEXT.EMBEDDING_DIM
-        self.c_dim = cfg.GAN.CONDITION_DIM
+        self.t_dim = cfg.TEXT.EMBEDDING_DIM # → (batch_size, 256)
+        self.c_dim = cfg.GAN.CONDITION_DIM # 생성 모델의 조건 벡터 크기 정의 (100)
         self.fc = nn.Linear(self.t_dim, self.c_dim * 4, bias=True)
+        # 입력된 텍스트 임베딩을 4배 더 큰 벡터로 변환하는 완전연결층
         self.relu = GLU()
+        # GLU (Gated Linear Unit) 활성화 함수를 적용하여 비선형성 추가
 
     def encode(self, text_embedding):
-        x = self.relu(self.fc(text_embedding))
-        mu = x[:, :self.c_dim]
-        logvar = x[:, self.c_dim:]
+        x = self.relu(self.fc(text_embedding)) # 입력된 text_embedding을 fc 층을 거쳐 변환 후, GLU 활성화 함수를 적용한다.
+        mu = x[:, :self.c_dim] # c_dim 길이의 평균 벡터
+        logvar = x[:, self.c_dim:] # c_dim 길이의 로그 분산 벡터터
         return mu, logvar
 
     def reparametrize(self, mu, logvar):
-        std = logvar.mul(0.5).exp_()
-        if cfg.CUDA:
-            eps = torch.cuda.FloatTensor(std.size()).normal_()
-        else:
-            eps = torch.FloatTensor(std.size()).normal_()
-        eps = Variable(eps)
-        return eps.mul(std).add_(mu)
+        std = logvar.mul(0.5).exp_() # 표준편차를 구하는 과정
+        #if cfg.CUDA:
+        #    eps = torch.cuda.FloatTensor(std.size()).normal_() # GPU에서 정규 분포에서 랜덤 노이즈 eps를 생성
+        #else:
+        #    eps = torch.FloatTensor(std.size()).normal_()
+        #eps = Variable(eps)
+        eps = torch.randn_like(std)
+        return eps.mul(std).add_(mu) 
+        # mu와 std를 기반으로 한 정규 분포에서 샘플링하는 방식(mu + std * eps)
 
     def forward(self, text_embedding):
         mu, logvar = self.encode(text_embedding)
@@ -314,9 +320,12 @@ class CA_NET(nn.Module):
 
 class INIT_STAGE_G(nn.Module):
     def __init__(self, ngf, ncf):
+        # ngf : 생성 네트워크의 필터 차원
+        # ncf : 조건 벡터의 차원
         super(INIT_STAGE_G, self).__init__()
         self.gf_dim = ngf
         self.in_dim = cfg.GAN.Z_DIM + ncf  # cfg.TEXT.EMBEDDING_DIM
+        # in_dim : z_code와 c_code의 결합된 차원
 
         self.define_module()
 
@@ -324,13 +333,16 @@ class INIT_STAGE_G(nn.Module):
         nz, ngf = self.in_dim, self.gf_dim
         self.fc = nn.Sequential(
             nn.Linear(nz, ngf * 4 * 4 * 2, bias=False),
-            nn.BatchNorm1d(ngf * 4 * 4 * 2),
+            nn.BatchNorm1d(ngf * 4 * 4 * 2), # 배치 정규화(BatchNormid)와 GLU(sigmoid 함수 적용)를 거쳐 활성화됨됨
             GLU())
+        # z_code와 c_code를 결합한 후, Linear 레이어를 사용하여 4*4 크기의 특성 맵으로 변환한다.
 
+        # 업샘플링 블록 : 해상도를 점차적으로 높여가는 네트워크
         self.upsample1 = upBlock(ngf, ngf // 2)
         self.upsample2 = upBlock(ngf // 2, ngf // 4)
         self.upsample3 = upBlock(ngf // 4, ngf // 8)
         self.upsample4 = upBlock(ngf // 8, ngf // 16)
+        # 마지막 upsample4에서는 64*64 해상도의 출력을 생성함
 
     def forward(self, z_code, c_code):
         """
@@ -338,10 +350,10 @@ class INIT_STAGE_G(nn.Module):
         :param c_code: batch x cfg.TEXT.EMBEDDING_DIM
         :return: batch x ngf/16 x 64 x 64
         """
-        c_z_code = torch.cat((c_code, z_code), 1)
+        c_z_code = torch.cat((c_code, z_code), 1) # c_code와 z_code를 결합하여 하나의 텐서로 만든다.
         # state size ngf x 4 x 4
-        out_code = self.fc(c_z_code)
-        out_code = out_code.view(-1, self.gf_dim, 4, 4)
+        out_code = self.fc(c_z_code) # 결합된 입력을 통해 fc 레이어를 지나 특성 맵을 생성
+        out_code = out_code.view(-1, self.gf_dim, 4, 4) # 출력 텐서 : (batch_size, gf_dim, 4, 4)
         # state size ngf/3 x 8 x 8
         out_code = self.upsample1(out_code)
         # state size ngf/4 x 16 x 16
@@ -398,7 +410,7 @@ class GET_IMAGE_G(nn.Module):
         super(GET_IMAGE_G, self).__init__()
         self.gf_dim = ngf
         self.img = nn.Sequential(
-            conv3x3(ngf, 3),
+            conv3x3(ngf, 3), # 특성 맵을 3채널 이미지로 변환한다.
             nn.Tanh()
         )
 
@@ -408,25 +420,35 @@ class GET_IMAGE_G(nn.Module):
 
 
 class G_NET(nn.Module):
+    # AttnGAN의 Generator(생성자) 모델 : 입력된 텍스트 임베딩과 랜덤 노이즈를 바탕으로 이미지를 생성한다.
     def __init__(self):
         super(G_NET, self).__init__()
-        ngf = cfg.GAN.GF_DIM
-        nef = cfg.TEXT.EMBEDDING_DIM
-        ncf = cfg.GAN.CONDITION_DIM
+        ngf = cfg.GAN.GF_DIM 
+        nef = cfg.TEXT.EMBEDDING_DIM 
+        ncf = cfg.GAN.CONDITION_DIM 
         self.ca_net = CA_NET()
+        # 텍스트 임베딩을 조건 벡터로 변환하는 신경망으로, GAN에서 텍스트를 조건으로 생성 작업을 하는 데 활용된다.
 
+        # 다단계 생성 네트워크 (cfg.TREE.BRANCH_NUM = 3)
         if cfg.TREE.BRANCH_NUM > 0:
             self.h_net1 = INIT_STAGE_G(ngf * 16, ncf)
+            # 이미지 생성의 초기 단계를 담당하는 네트워크
+            # 랜덤 노이드(z_code)와 조건 벡터(c_code)를 입력받아 점차적으로 해상도를 높여가며 이미지를 생성하는 역할을 한다.
             self.img_net1 = GET_IMAGE_G(ngf)
+            # 생성된 h_code를 입력받아 최종적으로 이미지를 생헝하는 역할
+            # h_code : 여러 단계를 거쳐 만들어진 특성 맵, 이를 3채널 이미지로 변환함
+        
         # gf x 64 x 64
         if cfg.TREE.BRANCH_NUM > 1:
-            self.h_net2 = NEXT_STAGE_G(ngf, nef, ncf)
+            self.h_net2 = NEXT_STAGE_G(ngf, nef, ncf) # 텍스트 임베딩과 이전 단계 출력을 받아 점진적으로 더 고해상도 이미지 생성
             self.img_net2 = GET_IMAGE_G(ngf)
+
         if cfg.TREE.BRANCH_NUM > 2:
             self.h_net3 = NEXT_STAGE_G(ngf, nef, ncf)
             self.img_net3 = GET_IMAGE_G(ngf)
 
     def forward(self, z_code, sent_emb, word_embs, mask):
+        # 텍스트 임베딩과 랜덤 노이즈 (z_code)를 이용해 이미지를 생성
         """
             :param z_code: batch x cfg.GAN.Z_DIM
             :param sent_emb: batch x cfg.TEXT.EMBEDDING_DIM
@@ -436,7 +458,7 @@ class G_NET(nn.Module):
         """
         fake_imgs = []
         att_maps = []
-        c_code, mu, logvar = self.ca_net(sent_emb)
+        c_code, mu, logvar = self.ca_net(sent_emb) # CA_NET을 통해 조건 벡터(c_code), 평균, 로그 분산
 
         if cfg.TREE.BRANCH_NUM > 0:
             h_code1 = self.h_net1(z_code, c_code)
@@ -458,6 +480,7 @@ class G_NET(nn.Module):
                 att_maps.append(att2)
 
         return fake_imgs, att_maps, mu, logvar
+        # fake_imgs : 생성된 이미지들의 리스트
 
 
 

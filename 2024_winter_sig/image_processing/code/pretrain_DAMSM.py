@@ -9,7 +9,7 @@ from datasets import TextDataset
 from datasets import prepare_data
 
 from model import RNN_ENCODER, CNN_ENCODER
-
+ 
 import os
 import sys
 # 파일 경로 조작 및 시스템 경로 설정

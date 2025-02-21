@@ -20,7 +20,6 @@ import torchvision.transforms as transforms
 dir_path = (os.path.abspath(os.path.join(os.path.realpath(__file__), './.')))
 sys.path.append(dir_path)
 
-
 def parse_args():
     parser = argparse.ArgumentParser(description='Train a AttnGAN network')
     parser.add_argument('--cfg', dest='cfg_file',
@@ -140,7 +139,7 @@ if __name__ == "__main__":
         algo.train()
     else:
         '''generate images from pre-extracted embeddings'''
-        if cfg.B_VALIDATION:
+        if cfg.B_VALIDATION: # 일반적으로 Validation을 사용하는 것이 좋긴 하지만.... 현재 학습 가능한 시간이 한정되어 있으므로 
             algo.sampling(split_dir)  # generate images for the whole valid dataset
         else:
             gen_example(dataset.wordtoix, algo)  # generate images for customized captions
