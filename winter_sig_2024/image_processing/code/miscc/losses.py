@@ -58,7 +58,9 @@ def sent_loss(cnn_code, rnn_code, labels, class_ids,
     scores0 = scores0 / norm0.clamp(min=eps) * cfg.TRAIN.SMOOTH.GAMMA3
 
     # --> batch_size x batch_size
-    scores0 = scores0.squeeze() # 배치 내 모든 샘플 간 유사도 행렬렬
+    scores0 = scores0.squeeze() # 배치 내 모든 샘플 간 유사도 행렬
+    masks = masks.to(torch.bool)
+
     if class_ids is not None:
         scores0.data.masked_fill_(masks, -float('inf')) # 같은 클래스끼리 비교하지 않도록록
     scores1 = scores0.transpose(0, 1)
@@ -145,6 +147,8 @@ def words_loss(img_features, words_emb, labels,
         masks = torch.ByteTensor(masks)
         if cfg.CUDA:
             masks = masks.cuda()
+        
+        masks = masks.to(torch.bool)
 
     similarities = similarities * cfg.TRAIN.SMOOTH.GAMMA3
     if class_ids is not None:

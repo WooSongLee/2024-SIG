@@ -16,4 +16,4 @@ app.add_middleware(
 app.include_router(api_router)
 #이거 나중에 nginx사용하면 바꿔야댐
 if __name__ == "__main__":
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    uvicorn.run(app, host="127.0.0.1", port=8888)
