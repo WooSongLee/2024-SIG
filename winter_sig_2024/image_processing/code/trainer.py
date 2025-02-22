@@ -6,7 +6,7 @@ import torch.nn as nn
 import torch.optim as optim
 from torch.autograd import Variable
 import torch.backends.cudnn as cudnn
-
+from torch.amp import autocast, GradScaler
 from PIL import Image
 
 from miscc.config import cfg
@@ -47,19 +47,24 @@ class condGANTrainer(object):
 
     def build_models(self):
         # ###################encoders######################################## #
-        if cfg.TRAIN.NET_E == '':
+        if cfg.TRAIN.NET_E == '': # 직접 학습시켜 저장한 text_encoder 경로로 지정해 줄 것임
             print('Error: no pretrained text-image encoders')
             return
 
-        image_encoder = CNN_ENCODER(cfg.TEXT.EMBEDDING_DIM)
+        #### CNN 인코더와 RNN 인코더를 불러오는 코드 ####
+        image_encoder = CNN_ENCODER(cfg.TEXT.EMBEDDING_DIM) # 256차원을 가지는 CNN 인코더 객체 생성
         img_encoder_path = cfg.TRAIN.NET_E.replace('text_encoder', 'image_encoder')
         state_dict = \
-            torch.load(img_encoder_path, map_location=lambda storage, loc: storage)
-        image_encoder.load_state_dict(state_dict)
+            torch.load(img_encoder_path, map_location=lambda storage, loc: storage) 
+        # 저장된 모델의 가중치 load
+        # 모델이 저장된 디바이스와 상관없이 CPU에서 로드 가능하도록 설정
+
+        image_encoder.load_state_dict(state_dict) # 불러온 가중치 적용
+
         for p in image_encoder.parameters():
-            p.requires_grad = False
+            p.requires_grad = False # GAN 훈련 시 encoder의 가중치 고정
         print('Load image encoder from:', img_encoder_path)
-        image_encoder.eval()
+        image_encoder.eval() # 학습 모드로 전환 -> train으로 진행하지 않는 이유? 추론(inference) 시 동작 최적화하기
 
         text_encoder = \
             RNN_ENCODER(self.n_words, nhidden=cfg.TEXT.EMBEDDING_DIM)
@@ -73,7 +78,9 @@ class condGANTrainer(object):
         text_encoder.eval()
 
         # #######################generator and discriminators############## #
-        netsD = []
+        netsD = [] 
+        # discriminator 모델 리스트 (판별자)
+        # AttnGAN은 여러 해상도의 이미지를 생성하므로, 여러 개의 Discriminator를 사용
         if cfg.GAN.B_DCGAN:
             if cfg.TREE.BRANCH_NUM ==1:
                 from model import D_NET64 as D_NET
@@ -84,9 +91,11 @@ class condGANTrainer(object):
             # TODO: elif cfg.TREE.BRANCH_NUM > 3:
             netG = G_DCGAN()
             netsD = [D_NET(b_jcu=False)]
-        else:
+        
+        else: # cfg.GAN.B_DCGAN = False
             from model import D_NET64, D_NET128, D_NET256
-            netG = G_NET()
+            # 모든 해상도의 Discriminator를 리스트(netsD)에 추가
+            netG = G_NET() # netG는 기본 GAN 사용
             if cfg.TREE.BRANCH_NUM > 0:
                 netsD.append(D_NET64())
             if cfg.TREE.BRANCH_NUM > 1:
@@ -94,13 +103,17 @@ class condGANTrainer(object):
             if cfg.TREE.BRANCH_NUM > 2:
                 netsD.append(D_NET256())
             # TODO: if cfg.TREE.BRANCH_NUM > 3:
-        netG.apply(weights_init)
+            # cfg.TREE.BRANCH_NUM = 3이므로 netsD = [D_NET64, D_NET128, D_NET256]
+
+        netG.apply(weights_init) # Generator의 가중치를 초기화
         # print(netG)
+
         for i in range(len(netsD)):
-            netsD[i].apply(weights_init)
+            netsD[i].apply(weights_init) # 각 Discriminator의 가중치도 초기화
             # print(netsD[i])
         print('# of netsD', len(netsD))
-        #
+        
+        # 기존 학습된 Generator & Discriminator 불러오기 (존재하는 경우우)
         epoch = 0
         if cfg.TRAIN.NET_G != '':
             state_dict = \
@@ -115,13 +128,13 @@ class condGANTrainer(object):
                 Gname = cfg.TRAIN.NET_G
                 for i in range(len(netsD)):
                     s_tmp = Gname[:Gname.rfind('/')]
-                    Dname = '%s/netD%d.pth' % (s_tmp, i)
+                    Dname = '%s/netD%d.pth' % (s_tmp, i) # 각 Discriminator 경로를 자동 생성
                     print('Load D from: ', Dname)
                     state_dict = \
                         torch.load(Dname, map_location=lambda storage, loc: storage)
                     netsD[i].load_state_dict(state_dict)
         # ########################################################### #
-        if cfg.CUDA:
+        if cfg.CUDA: # CUDA(GPU) 사용 확인 : True이면 모든 모델을 GPU로 이동동
             text_encoder = text_encoder.cuda()
             image_encoder = image_encoder.cuda()
             netG.cuda()
@@ -145,10 +158,12 @@ class condGANTrainer(object):
         return optimizerG, optimizersD
 
     def prepare_labels(self):
+        # GAN 학습에 사용될 라벨을 준비하는 함수
         batch_size = self.batch_size
-        real_labels = Variable(torch.FloatTensor(batch_size).fill_(1))
-        fake_labels = Variable(torch.FloatTensor(batch_size).fill_(0))
-        match_labels = Variable(torch.LongTensor(range(batch_size)))
+        real_labels = torch.FloatTensor(batch_size).fill_(1)
+        fake_labels = torch.FloatTensor(batch_size).fill_(0)
+        match_labels = torch.LongTensor(range(batch_size))
+
         if cfg.CUDA:
             real_labels = real_labels.cuda()
             fake_labels = fake_labels.cuda()
@@ -156,10 +171,19 @@ class condGANTrainer(object):
 
         return real_labels, fake_labels, match_labels
 
-    def save_model(self, netG, avg_param_G, netsD, epoch):
-        backup_para = copy_G_params(netG)
-        load_params(netG, avg_param_G)
-        torch.save(netG.state_dict(),
+    def save_model(self, netG, avg_param_G, netsD, epoch, optimizerG, optimizersD):
+        backup_para = copy_G_params(netG) # 생성기(netG)의 현재 파라미터 백업 시켜두기
+        load_params(netG, avg_param_G) # 평균화된 생성기의 파라미터를 저장장
+        
+        torch.save({
+            'epoch': epoch,
+            'netG_state_dict': netG.state_dict(),
+            'netD_state_dict': [netD.state_dict() for netD in netsD],
+            'optimizerG_state_dict': optimizerG.state_dict(),
+            'optimizerD_state_dict': [optimizerD.state_dict() for optimizerD in optimizersD]
+        }, '%s/checkpoint.pth' % self.model_dir)
+        
+        torch.save(netG.state_dict(), # netG의 상태 딕셔너리에 파일 저장장
             '%s/netG_epoch_%d.pth' % (self.model_dir, epoch))
         load_params(netG, backup_para)
         #
@@ -181,16 +205,19 @@ class condGANTrainer(object):
         fake_imgs, attention_maps, _, _ = netG(noise, sent_emb, words_embs, mask)
         for i in range(len(attention_maps)):
             if len(fake_imgs) > 1:
-                img = fake_imgs[i + 1].detach().cpu()
-                lr_img = fake_imgs[i].detach().cpu()
+                #img = fake_imgs[i + 1].detach().cpu()
+                #lr_img = fake_imgs[i].detach().cpu()
+                img = fake_imgs[i + 1].detach()
+                lr_img = fake_imgs[i].detach()
             else:
-                img = fake_imgs[0].detach().cpu()
+                #img = fake_imgs[0].detach().cpu()
+                img = fake_imgs[0].detach()
                 lr_img = None
             attn_maps = attention_maps[i]
             att_sze = attn_maps.size(2)
             img_set, _ = \
                 build_super_images(img, captions, self.ixtoword,
-                                   attn_maps, att_sze, lr_imgs=lr_img)
+                                   attn_maps, att_sze, lr_imgs=lr_img.cpu() if lr_img is not None else None)
             if img_set is not None:
                 im = Image.fromarray(img_set)
                 fullpath = '%s/G_%s_%d_%d.png'\
@@ -198,8 +225,9 @@ class condGANTrainer(object):
                 im.save(fullpath)
 
         # for i in range(len(netsD)):
-        i = -1
-        img = fake_imgs[i].detach()
+        #i = -1
+        #img = fake_imgs[i].detach()
+        img = fake_imgs[-1].detach()
         region_features, _ = image_encoder(img)
         att_sze = region_features.size(2)
         _, _, att_maps = words_loss(region_features.detach(),
@@ -223,12 +251,13 @@ class condGANTrainer(object):
 
         batch_size = self.batch_size
         nz = cfg.GAN.Z_DIM
-        noise = Variable(torch.FloatTensor(batch_size, nz))
-        fixed_noise = Variable(torch.FloatTensor(batch_size, nz).normal_(0, 1))
+        noise = torch.FloatTensor(batch_size, nz)
+        fixed_noise = torch.FloatTensor(batch_size, nz).normal_(0, 1)
         if cfg.CUDA:
             noise, fixed_noise = noise.cuda(), fixed_noise.cuda()
 
         gen_iterations = 0
+        scaler = GradScaler()
         # gen_iterations = start_epoch * self.num_batches
         for epoch in range(start_epoch, self.max_epoch):
             start_t = time.time()
@@ -242,7 +271,8 @@ class condGANTrainer(object):
                 ######################################################
                 # (1) Prepare training data and Compute text embeddings
                 ######################################################
-                data = data_iter.next()
+                #data = data_iter.next()
+                data = next(data_iter)
                 imgs, captions, cap_lens, class_ids, keys = prepare_data(data)
 
                 hidden = text_encoder.init_hidden(batch_size)
@@ -259,42 +289,51 @@ class condGANTrainer(object):
                 # (2) Generate fake images
                 ######################################################
                 noise.data.normal_(0, 1)
-                fake_imgs, _, mu, logvar = netG(noise, sent_emb, words_embs, mask)
+                
+                with autocast():
+                    fake_imgs, _, mu, logvar = netG(noise, sent_emb, words_embs, mask)
 
-                #######################################################
-                # (3) Update D network
-                ######################################################
-                errD_total = 0
-                D_logs = ''
-                for i in range(len(netsD)):
-                    netsD[i].zero_grad()
-                    errD = discriminator_loss(netsD[i], imgs[i], fake_imgs[i],
-                                              sent_emb, real_labels, fake_labels)
+                    #######################################################
+                    # (3) Update D network
+                    ######################################################
+                    errD_total = 0
+                    D_logs = ''
+                    for i in range(len(netsD)):
+                        #netsD[i].zero_grad()
+                        netsD.zero_grad(set_to_none=True) # 메모리 절약약
+                        errD = discriminator_loss(netsD[i], imgs[i], fake_imgs[i],
+                                                sent_emb, real_labels, fake_labels)
+                        # backward and update parameters
+                        #errD.backward()
+                        scaler.scale(errD).backward()
+                        optimizersD[i].step()
+                        errD_total += errD
+                        D_logs += 'errD%d: %.2f ' % (i, errD.data[0])
+
+                    #######################################################
+                    # (4) Update G network: maximize log(D(G(z)))
+                    ######################################################
+                    # compute total loss for training G
+                    step += 1
+                    gen_iterations += 1
+
+                    # do not need to compute gradient for Ds
+                    # self.set_requires_grad_value(netsD, False)
+                    #netG.zero_grad()
+                    netG.zero_grad(set_to_none=True)
+                    errG_total, G_logs = \
+                        generator_loss(netsD, image_encoder, fake_imgs, real_labels,
+                                    words_embs, sent_emb, match_labels, cap_lens, class_ids)
+                    kl_loss = KL_loss(mu, logvar)
+                    errG_total += kl_loss
+                    G_logs += 'kl_loss: %.2f ' % kl_loss.data[0]
                     # backward and update parameters
-                    errD.backward()
-                    optimizersD[i].step()
-                    errD_total += errD
-                    D_logs += 'errD%d: %.2f ' % (i, errD.data[0])
-
-                #######################################################
-                # (4) Update G network: maximize log(D(G(z)))
-                ######################################################
-                # compute total loss for training G
-                step += 1
-                gen_iterations += 1
-
-                # do not need to compute gradient for Ds
-                # self.set_requires_grad_value(netsD, False)
-                netG.zero_grad()
-                errG_total, G_logs = \
-                    generator_loss(netsD, image_encoder, fake_imgs, real_labels,
-                                   words_embs, sent_emb, match_labels, cap_lens, class_ids)
-                kl_loss = KL_loss(mu, logvar)
-                errG_total += kl_loss
-                G_logs += 'kl_loss: %.2f ' % kl_loss.data[0]
-                # backward and update parameters
-                errG_total.backward()
-                optimizerG.step()
+                    #errG_total.backward()
+                    #optimizerG.step()
+                    scaler.scale(errG_total).backward()
+                    scaler.step(optimizerG)
+                    scaler.update()
+                    
                 for p, avg_p in zip(netG.parameters(), avg_param_G):
                     avg_p.mul_(0.999).add_(0.001, p.data)
 
@@ -322,9 +361,9 @@ class condGANTrainer(object):
                      end_t - start_t))
 
             if epoch % cfg.TRAIN.SNAPSHOT_INTERVAL == 0:  # and epoch != 0:
-                self.save_model(netG, avg_param_G, netsD, epoch)
+                self.save_model(netG, avg_param_G, netsD, epoch, optimizerG, optimizersD)
 
-        self.save_model(netG, avg_param_G, netsD, self.max_epoch)
+        self.save_model(netG, avg_param_G, netsD, self.max_epoch, optimizerG, optimizersD)
 
     def save_singleimages(self, images, filenames, save_dir,
                           split_dir, sentenceID=0):
