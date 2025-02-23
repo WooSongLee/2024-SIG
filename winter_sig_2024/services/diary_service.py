@@ -1,9 +1,11 @@
 import datetime
+from typing import List
+from fastapi import HTTPException
 from sqlalchemy.orm import Session
 from sqlalchemy import select
-from sqlalchemy.sql import extract
 from winter_sig_2024.DB.models import Diary
 from winter_sig_2024.schemas import SavingData
+import base64
 
 
 # 이번달 일기 날짜, 제목, 이미지 return
@@ -76,3 +78,26 @@ def getAllDiaries(db: Session):
     dates = sorted(set(result))
 
     return {"dates": [date.strftime("%Y-%m-%d") for date in dates]}
+
+
+def getDiaryList(db: Session) -> List[dict]:
+    try:
+        diaries = db.query(Diary).all()
+
+        diary_list = []
+        for diary in diaries:
+            image_url = None
+            if diary.diary_image:
+                image_url = "data:image/jpeg;base64," + base64.b64encode(diary.diary_image).decode('utf-8')
+
+            diary_list.append({
+                "id": diary.diary_id,
+                "date": diary.diary_date.strftime("%Y-%m-%d %H:%M:%S"),
+                "title": diary.diary_title,
+                "img": image_url,  # 이미지 URL
+            })
+
+        return {"list": diary_list}
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"일기 목록을 가져오는 데 실패했습니다: {str(e)}")
