@@ -1,7 +1,10 @@
 import datetime
 from sqlalchemy.orm import Session
+from sqlalchemy import select
+from sqlalchemy.sql import extract
 from winter_sig_2024.DB.models import Diary
 from winter_sig_2024.schemas import SavingData
+
 
 # 이번달 일기 날짜, 제목, 이미지 return
 def getDiary(db: Session):
@@ -22,14 +25,16 @@ def getDiary(db: Session):
 
 # 메인에 들어갈 일기달력(이번달 작성한 일기가 존재하는 날짜 return)
 def getMainDiary(db: Session):
-    now = datetime.now()
-    year, month = now.year, now.month
+    diaries = db.query(Diary.diary_date, Diary.diary_title).all()
 
-    diaries = db.query(Diary.diary_date).filter(Diary.diary_date.year == year, Diary.diary_date.month == month).all()
+    diary_list = [
+        {"date": diary.diary_date.strftime("%Y-%m-%d"), "title": diary.diary_title or "일기"}
+        for diary in diaries
+    ]
 
-    diary_dates = [diary.diary_date.strftime("%Y-%m-%d") for diary in diaries]
+    return {"diaries": diary_list}
 
-    return {"dates": diary_dates}
+
 
 
 # 선택한 날짜의 일기 제목, 내용, image return
@@ -63,3 +68,11 @@ def savingDiary(db: Session, data: SavingData):
     db.refresh(new_diary)
 
     return {"status": "success"}
+
+
+def getAllDiaries(db: Session):
+    result = db.execute(select(Diary.diary_date)).scalars().all()
+
+    dates = sorted(set(result))
+
+    return {"dates": [date.strftime("%Y-%m-%d") for date in dates]}

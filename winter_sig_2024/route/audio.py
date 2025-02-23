@@ -15,5 +15,6 @@ def upload_audio(audio_file: UploadFile = File(...), date: str = Form(...), tone
         "status": True,
         "date": date,
         "tone": tone,
-        "content": content
+        "content": content,
+        "prevContent" : extractedContents
     }
