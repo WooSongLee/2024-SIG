@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends
 from winter_sig_2024.schemas import SavingData
-from winter_sig_2024.services.diary_service import getDiary, getMainDiary, getSelectedDiary, savingDiary
+from winter_sig_2024.services.diary_service import getDiary, getMainDiary, getSelectedDiary, savingDiary,getAllDiaries
 from winter_sig_2024.DB.db import get_db
 from sqlalchemy.orm import Session
 
@@ -25,3 +25,7 @@ def get_selected_diary(selectedDate: str, db: Session = Depends(get_db)):
 @router.get("/saving")
 def saving_diary(savingdata: SavingData, db: Session = Depends(get_db)):
     return savingDiary(db, savingdata)
+
+@router.get("/allDiary")
+def get_all_diary(db: Session = Depends(get_db)):
+    return getAllDiaries(db)
